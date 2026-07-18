@@ -1,6 +1,6 @@
 {
   "name": "gallery",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "repository": "https://github.com/dk8990/gallery-app",
   "main": "dist-main/index.js",
   "scripts": {
@@ -14,7 +14,9 @@
   "build": {
     "appId": "com.gallery.app",
     "productName": "Gallery",
-    "publish": ["github"],
+    "publish": [
+      "github"
+    ],
     "files": [
       "dist-main/**/*",
       "out/**/*"
@@ -26,7 +28,10 @@
       "target": "nsis"
     },
     "mac": {
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     }
   },
   "dependencies": {
