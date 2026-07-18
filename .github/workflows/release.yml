@@ -1,6 +1,7 @@
 name: Build & Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*' # Trigger workflow only when you push a tag starting with 'v'
@@ -8,6 +9,8 @@ on:
 jobs:
   release:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     
     strategy:
       matrix:
@@ -28,5 +31,5 @@ jobs:
 
       - name: Build and Publish
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }} # Required to publish to GitHub Releases
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Use the built-in token
         run: npm run build -- --publish always
