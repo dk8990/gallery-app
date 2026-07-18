@@ -29,4 +29,4 @@ jobs:
       - name: Build and Publish
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }} # Required to publish to GitHub Releases
-        run: npm run build
+        run: npm run build -- --publish always
