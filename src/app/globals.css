@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 9, 9, 11;
+  --background-end-rgb: 9, 9, 11;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-start-rgb));
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dropdown-3d {
+  perspective: 1000px;
+}
+
+.dropdown-3d-open {
+  opacity: 1;
+  visibility: visible;
+  transform: perspective(400px) translateY(0) rotateX(0deg) scale(1);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dropdown-3d-closed {
+  opacity: 0;
+  visibility: hidden;
+  transform: perspective(400px) translateY(-80%) rotateX(50deg) scale(0.6);
+  /* Delay visibility hidden until opacity finishes */
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.5s;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Fix View Transition Z-Index Overlap */
+::view-transition-group(*) {
+  z-index: 100;
+}
+::view-transition-group(root) {
+  z-index: 0;
+}
+
+/* Fix Aspect Ratio Stretch during transitions */
+::view-transition-old(*),
+::view-transition-new(*) {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  object-fit: fill;
+}
