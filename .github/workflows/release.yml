@@ -11,7 +11,7 @@ jobs:
     
     strategy:
       matrix:
-        os: [windows-latest] # Add 'macos-latest' or 'ubuntu-latest' if you want Mac/Linux builds too
+        os: [windows-latest, macos-latest] # Add 'macos-latest' or 'ubuntu-latest' if you want Mac/Linux builds too
 
     steps:
       - name: Checkout Code

@@ -24,6 +24,9 @@
     },
     "win": {
       "target": "nsis"
+    },
+    "mac": {
+      "target": ["dmg", "zip"]
     }
   },
   "dependencies": {
