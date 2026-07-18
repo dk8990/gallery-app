@@ -13,6 +13,7 @@ jobs:
       contents: write
     
     strategy:
+      max-parallel: 1
       matrix:
         os: [windows-latest, macos-latest] # Add 'macos-latest' or 'ubuntu-latest' if you want Mac/Linux builds too
 

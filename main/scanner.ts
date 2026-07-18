@@ -12,10 +12,10 @@ import { BrowserWindow } from 'electron';
 let processedCount = 0;
 
 if (ffmpegStatic) {
-  ffmpeg.setFfmpegPath(ffmpegStatic.replace('app.asar', 'app.asar.unpacked'));
+  ffmpeg.setFfmpegPath(ffmpegStatic.replace(/app\.asar/i, 'app.asar.unpacked'));
 }
 if (ffprobeStatic && ffprobeStatic.path) {
-  ffmpeg.setFfprobePath(ffprobeStatic.path.replace('app.asar', 'app.asar.unpacked'));
+  ffmpeg.setFfprobePath(ffprobeStatic.path.replace(/app\.asar/i, 'app.asar.unpacked'));
 }
 
 const validExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mkv']);
