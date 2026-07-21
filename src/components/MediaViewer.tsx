@@ -373,6 +373,16 @@ export function MediaViewer({
     }
   }, [item?.id, isPlaying, item?.type]);
 
+  // Pause all inactive videos
+  useEffect(() => {
+    const videos = document.querySelectorAll('video');
+    videos.forEach(v => {
+      if (v !== videoRef.current) {
+        v.pause();
+      }
+    });
+  }, [item?.id]);
+
   const toggleMute = useCallback(() => {
     if (videoRef.current) {
       const newVol = volume > 0 ? 0 : 1;
