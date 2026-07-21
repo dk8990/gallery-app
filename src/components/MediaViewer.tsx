@@ -843,6 +843,7 @@ export function MediaViewer({
           <video
             ref={isCurrent ? videoRef : undefined}
             src={itemMediaUrl}
+            poster={`media://${encodeURIComponent(mediaItem.thumbnail_path)}`}
             crossOrigin="anonymous"
             autoPlay={isCurrent}
             loop={isCurrent ? !isSlideshow : false}
