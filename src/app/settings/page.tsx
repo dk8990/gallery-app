@@ -179,14 +179,28 @@ export default function SettingsPage() {
               <div className="space-y-3">
                 {directories.map(dir => (
                   <div key={dir.id} className="flex items-center justify-between bg-black/40 border border-white/5 p-4 rounded-xl group hover:border-white/10">
-                    <span className="text-sm font-medium truncate pr-4 text-zinc-300 font-mono" title={dir.path}>{dir.path}</span>
-                    <InteractiveButton 
-                      onClick={() => handleRemoveDirectory(dir.id)}  
-                      className="p-2 shrink-0 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                      title="Remove Folder"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </InteractiveButton>
+                    <span className="text-sm font-medium truncate pr-4 text-zinc-300 font-mono flex-1" title={dir.path}>{dir.path}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {scanningDirectories.includes(dir.path) && (
+                        <InteractiveButton
+                          onClick={async () => {
+                            if (!window.electronAPI) return;
+                            await window.electronAPI.stopScan(dir.path);
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-all border border-zinc-700 hover:border-zinc-600 active:scale-95 flex items-center gap-2"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                          Stop Scan
+                        </InteractiveButton>
+                      )}
+                      <InteractiveButton 
+                        onClick={() => handleRemoveDirectory(dir.id)}  
+                        className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Remove Folder"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </InteractiveButton>
+                    </div>
                   </div>
                 ))}
                 {directories.length === 0 && (

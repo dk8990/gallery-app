@@ -269,6 +269,20 @@ ipcMain.handle('scan-directory', async (event, dirPath: string) => {
   return { status: 'started' };
 });
 
+ipcMain.handle('stop-scan', (event, dirPath: string) => {
+  if (activeScans.has(dirPath)) {
+    activeScans.get(dirPath)?.abort();
+    activeScans.delete(dirPath);
+    scanningDirectories.delete(dirPath);
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('scan-status', { scanningDirectories: Array.from(scanningDirectories) });
+    }
+    return { success: true };
+  }
+  return { success: false };
+});
+
 ipcMain.handle('get-scan-status', () => {
   return { scanningDirectories: Array.from(scanningDirectories) };
 });

@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ping: (message: string) => ipcRenderer.invoke('ping', message),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   scanDirectory: (dirPath: string) => ipcRenderer.invoke('scan-directory', dirPath),
+  stopScan: (dirPath: string) => ipcRenderer.invoke('stop-scan', dirPath),
   getScanStatus: () => ipcRenderer.invoke('get-scan-status'),
   getFolders: () => ipcRenderer.invoke('get-folders'),
   getMedia: (page: number, limit: number, searchQuery?: string, activeFolder?: string, filterType?: string, sortBy?: string, startDate?: string, endDate?: string) => 
