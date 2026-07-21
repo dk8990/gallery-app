@@ -7,15 +7,27 @@ on:
       - 'v*' # Trigger workflow only when you push a tag starting with 'v'
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+
   release:
+    needs: create-release
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
     
     strategy:
-      max-parallel: 1
       matrix:
-        os: [windows-latest, macos-latest] # Add 'macos-latest' or 'ubuntu-latest' if you want Mac/Linux builds too
+        os: [windows-latest, macos-latest]
 
     steps:
       - name: Checkout Code

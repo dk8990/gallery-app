@@ -1,6 +1,6 @@
 {
   "name": "gallery",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "repository": "https://github.com/dk8990/gallery-app",
   "main": "dist-main/index.js",
   "scripts": {
@@ -14,9 +14,10 @@
   "build": {
     "appId": "com.gallery.app",
     "productName": "Gallery",
-    "publish": [
-      "github"
-    ],
+    "publish": {
+      "provider": "github",
+      "releaseType": "release"
+    },
     "files": [
       "dist-main/**/*",
       "out/**/*"
