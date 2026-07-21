@@ -107,7 +107,7 @@ export default function Home() {
   const [folders, setFolders] = useState<string[]>([]);
   const [scanningDirectories, setScanningDirectories] = useState<string[]>([]);
 
-  const fetchMedia = async (pageNum = 1, append = false) => {
+  const fetchMedia = useCallback(async (pageNum = 1, append = false) => {
     if (!window.electronAPI) return;
     try {
       setIsLoading(true);
@@ -128,9 +128,9 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [debouncedSearch, activeFolder, filterType, sortBy, startDate, endDate]);
 
-  const fetchDirectories = async () => {
+  const fetchDirectories = useCallback(async () => {
     if (!window.electronAPI) return;
     const [dirRes, folderRes] = await Promise.all([
       window.electronAPI.getDirectories(),
@@ -138,7 +138,7 @@ export default function Home() {
     ]);
     if (dirRes.success) setDirectories(dirRes.directories);
     if (folderRes.success) setFolders(folderRes.folders);
-  };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -150,7 +150,7 @@ export default function Home() {
   useEffect(() => {
     setPage(1);
     fetchMedia(1, false);
-  }, [debouncedSearch, activeFolder, filterType, sortBy, scanningDirectories.length, startDate, endDate]);
+  }, [debouncedSearch, activeFolder, filterType, sortBy, scanningDirectories.length, startDate, endDate, fetchMedia]);
 
   useEffect(() => {
     fetchDirectories();
@@ -159,7 +159,7 @@ export default function Home() {
       interval = setInterval(() => fetchMedia(1, false), 3000);
     }
     return () => clearInterval(interval);
-  }, [scanningDirectories.length]);
+  }, [scanningDirectories.length, fetchMedia, fetchDirectories]);
 
   useEffect(() => {
     if (window.electronAPI?.onLibraryUpdated) {
@@ -176,7 +176,7 @@ export default function Home() {
         setScanningDirectories(status.scanningDirectories);
       });
     }
-  }, []);
+  }, [fetchMedia, fetchDirectories]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
