@@ -5,7 +5,7 @@ import { flushSync } from 'react-dom';
 import { Sidebar, FolderNode } from "@/components/Sidebar";
 import { DynamicDropdown } from "@/components/DynamicDropdown";
 import { useMasonry, useVirtualMasonry } from "@/components/useMasonry";
-import { PlayCircle, Settings, X, Plus, Trash2, Filter, ArrowUpDown, Play, Shuffle, Search, CheckCircle2, Circle, Copy, Tag } from "lucide-react";
+import { PlayCircle, Settings, X, Plus, Trash2, Filter, ArrowUpDown, Play, Shuffle, Search, CheckCircle2, Circle, Copy, Tag, ArrowUp } from "lucide-react";
 import { MediaViewer } from "@/components/MediaViewer";
 import { InteractiveButton } from "@/components/InteractiveButton";
 import clsx from "clsx";
@@ -105,6 +105,9 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [folders, setFolders] = useState<string[]>([]);
+  const [pendingRefresh, setPendingRefresh] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const currentTotalRef = useRef(0);
   const [scanningDirectories, setScanningDirectories] = useState<string[]>([]);
 
   const fetchMedia = useCallback(async (pageNum = 1, append = false) => {
@@ -121,14 +124,32 @@ export default function Home() {
         setMediaItems(data.items);
       }
       setTotal(data.total);
+      currentTotalRef.current = data.total;
       setPage(data.page);
       setHasMore(data.page < data.totalPages);
+      setPendingRefresh(false);
     } catch (error) {
       console.error(error);
     } finally {
       setIsLoading(false);
     }
   }, [debouncedSearch, activeFolder, filterType, sortBy, startDate, endDate]);
+
+  const checkNewMedia = useCallback(async () => {
+    if (!window.electronAPI || activeMediaIdRef.current !== null) return;
+    try {
+      const data = await window.electronAPI.getMedia(1, 1, debouncedSearch, activeFolder, filterType, sortBy, startDate, endDate);
+      if (data.total > currentTotalRef.current) {
+        if (isScrolled) {
+          setPendingRefresh(true);
+        } else {
+          fetchMedia(1, false);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [debouncedSearch, activeFolder, filterType, sortBy, startDate, endDate, isScrolled, fetchMedia]);
 
   const fetchDirectories = useCallback(async () => {
     if (!window.electronAPI) return;
@@ -150,7 +171,7 @@ export default function Home() {
   useEffect(() => {
     setPage(1);
     fetchMedia(1, false);
-  }, [debouncedSearch, activeFolder, filterType, sortBy, scanningDirectories.length, startDate, endDate, fetchMedia]);
+  }, [debouncedSearch, activeFolder, filterType, sortBy, startDate, endDate, fetchMedia]);
 
   const activeMediaIdRef = useRef(activeMediaId);
   useEffect(() => {
@@ -169,18 +190,16 @@ export default function Home() {
     fetchDirectories();
     let interval: NodeJS.Timeout;
     if (scanningDirectories.length > 0 && activeMediaId === null) {
-      interval = setInterval(() => fetchMedia(1, false), 3000);
+      interval = setInterval(() => checkNewMedia(), 3000);
     }
     return () => clearInterval(interval);
-  }, [scanningDirectories.length, fetchMedia, fetchDirectories, activeMediaId]);
+  }, [scanningDirectories.length, checkNewMedia, fetchDirectories, activeMediaId]);
 
   useEffect(() => {
     if (window.electronAPI?.onLibraryUpdated) {
       window.electronAPI.onLibraryUpdated(() => {
         fetchDirectories();
-        if (activeMediaIdRef.current === null) {
-          fetchMedia(1, false);
-        }
+        checkNewMedia();
       });
     }
     if (window.electronAPI?.onScanStatus) {
@@ -294,10 +313,14 @@ export default function Home() {
   const visibleItems = useVirtualMasonry(positionedItems, scrollRef);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    if (target.scrollHeight - target.scrollTop - target.clientHeight < 500) {
+    const target = e.target as HTMLDivElement;
+    
+    setIsScrolled(target.scrollTop > 100);
+
+    if (target.scrollHeight - target.scrollTop <= target.clientHeight + 800) {
       if (hasMore && !isLoading) {
-        fetchMedia(page + 1, true);
+        const nextPage = page + 1;
+        fetchMedia(nextPage, true);
       }
     }
   };
@@ -455,6 +478,24 @@ export default function Home() {
         </header>
 
         <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pt-28 px-8 pb-8">
+          
+          {/* New Items Pill */}
+          {pendingRefresh && (
+            <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+              <button
+                onClick={() => {
+                  if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                  fetchMedia(1, false);
+                  setPendingRefresh(false);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-full shadow-xl shadow-black/50 border border-indigo-400/30 transition-all active:scale-95"
+              >
+                <ArrowUp className="w-4 h-4" />
+                New items discovered
+              </button>
+            </div>
+          )}
+
           {mediaItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-zinc-500">
               <p className="text-lg">No media found.</p>
