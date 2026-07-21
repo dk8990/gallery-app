@@ -113,9 +113,9 @@ export function MediaViewer({
       if (pendingNavigateRef.current !== null) {
         setIsTracking(true);
         flushSync(() => {
+          setSwipeOffset({ x: 0, y: 0 });
           onNavigate(pendingNavigateRef.current!);
         });
-        setSwipeOffset({ x: 0, y: 0 });
         pendingNavigateRef.current = null;
       }
       swipeTimeoutRef.current = null;
@@ -569,6 +569,7 @@ export function MediaViewer({
           }
         }
         flushSync(() => {
+          setSwipeOffset({ x: resumedX, y: 0 });
           onNavigate(pendingNavigateRef.current!);
         });
         pendingNavigateRef.current = null;
@@ -702,9 +703,9 @@ export function MediaViewer({
             if (pendingNavigateRef.current !== null) {
               setIsTracking(true); // Disable transition for jump
               flushSync(() => {
+                setSwipeOffset({ x: 0, y: 0 }); // Snap back to center instantly
                 onNavigate(pendingNavigateRef.current!);
               });
-              setSwipeOffset({ x: 0, y: 0 }); // Snap back to center instantly
               pendingNavigateRef.current = null;
             }
             swipeTimeoutRef.current = null;
@@ -1044,13 +1045,12 @@ export function MediaViewer({
                 />
               </div>
 
-              <div className="flex items-center h-8 px-2 -ml-2 rounded-full hover:bg-black/40 transition-all cursor-pointer relative">
-                <div className="peer flex items-center h-full">
-                  <InteractiveButton onClick={toggleMute} className="text-white hover:text-indigo-400 drop-shadow-md">
-                    {volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                  </InteractiveButton>
-                </div>
-                <div className="w-0 overflow-hidden opacity-0 peer-hover:w-24 peer-hover:opacity-100 peer-hover:ml-2 hover:w-24 hover:opacity-100 hover:ml-2 transition-all duration-300 flex items-center">
+              <div className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-black/40 transition-all cursor-pointer relative group/volume">
+                <InteractiveButton onClick={toggleMute} className="text-white hover:text-indigo-400 drop-shadow-md">
+                  {volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                </InteractiveButton>
+                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-9 h-28 opacity-0 pointer-events-none scale-95 origin-bottom group-hover/volume:opacity-100 group-hover/volume:pointer-events-auto group-hover/volume:scale-100 transition-all duration-300 flex justify-center items-center bg-black/60 rounded-full py-3 shadow-lg backdrop-blur-sm z-50">
+                  <div className="absolute -bottom-4 left-0 right-0 h-6 bg-transparent" />
                   <input
                     type="range"
                     min="0"
@@ -1064,7 +1064,7 @@ export function MediaViewer({
                         videoRef.current.volume = newVol;
                       }
                     }}
-                    className="w-20 h-1.5 accent-indigo-500 bg-white/20 rounded-full appearance-none cursor-pointer outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md"
+                    className="w-20 h-1.5 -rotate-90 origin-center accent-indigo-500 bg-white/20 rounded-full appearance-none cursor-pointer outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md"
                   />
                 </div>
               </div>
