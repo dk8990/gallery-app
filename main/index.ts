@@ -13,10 +13,10 @@ import * as chokidar from 'chokidar';
 import { autoUpdater } from 'electron-updater';
 
 if (ffmpegStatic) {
-  ffmpeg.setFfmpegPath(ffmpegStatic as string);
+  ffmpeg.setFfmpegPath((ffmpegStatic as string).replace(/app\.asar/i, 'app.asar.unpacked'));
 }
 if (ffprobeStatic) {
-  ffmpeg.setFfprobePath(ffprobeStatic.path);
+  ffmpeg.setFfprobePath(ffprobeStatic.path.replace(/app\.asar/i, 'app.asar.unpacked'));
 }
 
 const ffprobeCache = new Map<string, ffmpeg.FfprobeData>();
