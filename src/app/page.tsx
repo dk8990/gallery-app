@@ -169,6 +169,9 @@ export default function Home() {
       });
     }
     if (window.electronAPI?.onScanStatus) {
+      window.electronAPI.getScanStatus().then((status) => {
+        setScanningDirectories(status.scanningDirectories);
+      });
       window.electronAPI.onScanStatus((status) => {
         setScanningDirectories(status.scanningDirectories);
       });

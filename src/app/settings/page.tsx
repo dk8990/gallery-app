@@ -48,6 +48,9 @@ export default function SettingsPage() {
       setDefaultMediaSize(localStorage.getItem('defaultMediaSize') || 'fit');
     }
     if (window.electronAPI?.onScanStatus) {
+      window.electronAPI.getScanStatus().then((status) => {
+        setScanningDirectories(status.scanningDirectories);
+      });
       window.electronAPI.onScanStatus((status) => {
         setScanningDirectories(status.scanningDirectories);
       });

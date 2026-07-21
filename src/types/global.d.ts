@@ -6,6 +6,7 @@ declare global {
       ping: (message: string) => Promise<string>;
       selectDirectory: () => Promise<string | null>;
       scanDirectory: (dirPath: string) => Promise<{ status: string }>;
+      getScanStatus: () => Promise<{ scanningDirectories: string[] }>;
       getFolders: () => Promise<{ success: boolean; folders: string[] }>;
       getMedia: (page: number, limit: number, searchQuery?: string, activeFolder?: string, filterType?: string, sortBy?: string, startDate?: string, endDate?: string) => Promise<{
         items: Array<{

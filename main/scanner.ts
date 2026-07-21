@@ -24,6 +24,14 @@ const thumbnailsDir = path.join(app.getPath('userData'), 'thumbnails');
 // Ensure thumbnails directory exists
 fs.mkdir(thumbnailsDir, { recursive: true }).catch(console.error);
 
+const checkExistingStmt = db.prepare('SELECT id FROM Media WHERE filepath = ?');
+const checkExistingRemoveStmt = db.prepare('SELECT id, thumbnail_path FROM Media WHERE filepath = ?');
+const deleteMediaStmt = db.prepare('DELETE FROM Media WHERE id = ?');
+const insertMediaStmt = db.prepare(`
+  INSERT INTO Media (filepath, filename, type, size, thumbnail_path, width, height, duration, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
 async function generateImageThumbnail(filePath: string, destPath: string): Promise<{width: number, height: number}> {
   const image = sharp(filePath);
   const metadata = await image.metadata();
@@ -61,7 +69,7 @@ export async function processFile(fullPath: string) {
   const ext = path.extname(fullPath).toLowerCase();
   if (!validExtensions.has(ext)) return;
 
-  const existing = db.prepare('SELECT id FROM Media WHERE filepath = ?').get(fullPath);
+  const existing = checkExistingStmt.get(fullPath);
   if (existing) return;
 
   try {
@@ -81,12 +89,8 @@ export async function processFile(fullPath: string) {
       dimensions = await generateVideoThumbnail(fullPath, thumbPath);
     }
 
-    const insert = db.prepare(`
-      INSERT INTO Media (filepath, filename, type, size, thumbnail_path, width, height, duration, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
     const filename = path.basename(fullPath);
-    insert.run(fullPath, filename, type, stats.size, thumbPath, dimensions.width, dimensions.height, dimensions.duration, stats.birthtime.toISOString());
+    insertMediaStmt.run(fullPath, filename, type, stats.size, thumbPath, dimensions.width, dimensions.height, dimensions.duration, stats.birthtime.toISOString());
     console.log(`Indexed: ${filename}`);
   } catch (error) {
     console.error(`Failed to process ${fullPath}:`, error);
@@ -103,9 +107,9 @@ export async function processFile(fullPath: string) {
 
 export function removeFile(fullPath: string) {
   try {
-    const existing = db.prepare('SELECT id, thumbnail_path FROM Media WHERE filepath = ?').get(fullPath) as { id: number, thumbnail_path: string } | undefined;
+    const existing = checkExistingRemoveStmt.get(fullPath) as { id: number, thumbnail_path: string } | undefined;
     if (existing) {
-      db.prepare('DELETE FROM Media WHERE id = ?').run(existing.id);
+      deleteMediaStmt.run(existing.id);
       fs.unlink(existing.thumbnail_path).catch(() => {});
       console.log(`Removed: ${path.basename(fullPath)}`);
     }
@@ -114,15 +118,21 @@ export function removeFile(fullPath: string) {
   }
 }
 
-export async function scanDirectory(dirPath: string) {
+let fileCheckCount = 0;
+
+export async function scanDirectory(dirPath: string, signal?: AbortSignal) {
+  if (signal?.aborted) return;
+
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
     for (const entry of entries) {
+      if (signal?.aborted) return;
+
       const fullPath = path.join(dirPath, entry.name);
 
       if (entry.isDirectory()) {
-        await scanDirectory(fullPath);
+        await scanDirectory(fullPath, signal);
       } else {
         try {
           await processFile(fullPath);
@@ -130,8 +140,14 @@ export async function scanDirectory(dirPath: string) {
           console.error(`Error processing file ${fullPath}:`, fileErr);
         }
       }
+      
+      fileCheckCount++;
+      if (fileCheckCount % 100 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
   } catch (err) {
+    if (signal?.aborted) return;
     console.error(`Error scanning ${dirPath}:`, err);
   }
 }

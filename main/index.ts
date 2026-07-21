@@ -237,16 +237,28 @@ ipcMain.handle('select-directory', async () => {
   return result.filePaths[0];
 });
 
+const activeScans = new Map<string, AbortController>();
 let scanningDirectories = new Set<string>();
+
 ipcMain.handle('scan-directory', async (event, dirPath: string) => {
+  if (activeScans.has(dirPath)) {
+    activeScans.get(dirPath)?.abort();
+  }
+  
+  const controller = new AbortController();
+  activeScans.set(dirPath, controller);
   scanningDirectories.add(dirPath);
+
   if (mainWindow) {
     mainWindow.webContents.send('scan-status', { scanningDirectories: Array.from(scanningDirectories) });
   }
   
-  scanDirectory(dirPath).finally(() => {
+  scanDirectory(dirPath, controller.signal).finally(() => {
+    if (activeScans.get(dirPath) === controller) {
+      activeScans.delete(dirPath);
+    }
     scanningDirectories.delete(dirPath);
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('scan-status', { scanningDirectories: Array.from(scanningDirectories) });
       if (scanningDirectories.size === 0) {
         debouncedLibraryUpdate();
@@ -255,6 +267,10 @@ ipcMain.handle('scan-directory', async (event, dirPath: string) => {
   });
   
   return { status: 'started' };
+});
+
+ipcMain.handle('get-scan-status', () => {
+  return { scanningDirectories: Array.from(scanningDirectories) };
 });
 
 ipcMain.handle('get-folders', () => {
@@ -351,6 +367,21 @@ ipcMain.handle('get-media', (event, page: number = 1, limit: number = 50, search
 
 ipcMain.handle('clear-database', () => {
   try {
+    for (const controller of activeScans.values()) {
+      controller.abort();
+    }
+    activeScans.clear();
+    scanningDirectories.clear();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('scan-status', { scanningDirectories: [] });
+    }
+
+    const dirs = db.prepare('SELECT path FROM Directories').all() as { path: string }[];
+    dirs.forEach(d => {
+      if (watcher) watcher.unwatch(d.path);
+    });
+
+    db.prepare('DELETE FROM Directories').run();
     db.prepare('DELETE FROM Media').run();
     db.prepare('DELETE FROM Tags').run();
     db.prepare('DELETE FROM MediaTags').run();
@@ -452,10 +483,20 @@ ipcMain.handle('remove-directory', (event, id: number) => {
   try {
     const dir = db.prepare('SELECT path FROM Directories WHERE id = ?').get(id) as { path: string };
     if (dir) {
+      if (activeScans.has(dir.path)) {
+        activeScans.get(dir.path)?.abort();
+        activeScans.delete(dir.path);
+        scanningDirectories.delete(dir.path);
+      }
       db.prepare('DELETE FROM Media WHERE filepath LIKE ?').run(`${dir.path}%`);
       if (watcher) watcher.unwatch(dir.path);
     }
     db.prepare('DELETE FROM Directories WHERE id = ?').run(id);
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('scan-status', { scanningDirectories: Array.from(scanningDirectories) });
+    }
+
     return { success: true };
   } catch (error) {
     console.error('Failed to remove directory:', error);
