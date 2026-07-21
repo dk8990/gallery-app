@@ -181,10 +181,10 @@ export default function Home() {
   const prevActiveMediaIdRef = useRef(activeMediaId);
   useEffect(() => {
     if (prevActiveMediaIdRef.current !== null && activeMediaId === null) {
-      fetchMedia(1, false);
+      checkNewMedia();
     }
     prevActiveMediaIdRef.current = activeMediaId;
-  }, [activeMediaId, fetchMedia]);
+  }, [activeMediaId, checkNewMedia]);
 
   useEffect(() => {
     fetchDirectories();
@@ -210,7 +210,7 @@ export default function Home() {
         setScanningDirectories(status.scanningDirectories);
       });
     }
-  }, [fetchMedia, fetchDirectories]);
+  }, [checkNewMedia, fetchDirectories]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -240,7 +240,7 @@ export default function Home() {
       window.removeEventListener('media-rotated', handleRotated);
       window.removeEventListener('media-deleted', handleDeleted);
     };
-  }, []);
+  }, [fetchMedia]);
 
   // Slideshow Logic moved below
 

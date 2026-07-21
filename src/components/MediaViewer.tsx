@@ -363,6 +363,16 @@ export function MediaViewer({
     }
   }, [isPlaying]);
 
+  useEffect(() => {
+    if (item?.type === 'video' && videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.play().catch(e => console.log('Autoplay prevented:', e));
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  }, [item?.id, isPlaying, item?.type]);
+
   const toggleMute = useCallback(() => {
     if (videoRef.current) {
       const newVol = volume > 0 ? 0 : 1;
