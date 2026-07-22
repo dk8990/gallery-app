@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 
 export type MediaItem = {
   id: number;
@@ -37,6 +38,18 @@ export function useMediaLibrary() {
     }
   }, []);
 
+  const pathname = usePathname();
+
+  // Sync state with sessionStorage in case we navigated back from settings
+  useEffect(() => {
+    if (typeof window !== 'undefined' && pathname === '/') {
+      const stored = sessionStorage.getItem('activeFolder') || '';
+      if (stored !== activeFolder) {
+        setActiveFolderState(stored);
+      }
+    }
+  }, [pathname, activeFolder]);
+
   const [filterType, setFilterType] = useState<'All' | 'video' | 'image'>('All');
   const [sortBy, setSortBy] = useState<'Newest' | 'Oldest' | 'Largest' | 'Smallest' | 'Random'>('Newest');
   const [startDate, setStartDate] = useState('');
@@ -52,6 +65,7 @@ export function useMediaLibrary() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingRefresh, setPendingRefresh] = useState(false);
+  const [lastLibraryUpdate, setLastLibraryUpdate] = useState(0);
   
   const currentTotalRef = useRef(0);
 
@@ -96,7 +110,7 @@ export function useMediaLibrary() {
       const data = await window.electronAPI.getMedia(
         1, 1, debouncedSearch, activeFolder, filterType, sortBy, startDate, endDate
       );
-      if (data.total > currentTotalRef.current) {
+      if (data.total !== currentTotalRef.current) {
         if (isScrolled) {
           setPendingRefresh(true);
         } else {
@@ -131,8 +145,7 @@ export function useMediaLibrary() {
     if (window.electronAPI?.onLibraryUpdated) {
       window.electronAPI.onLibraryUpdated(() => {
         fetchDirectories();
-        // The page component needs to checkNewMedia when this happens.
-        // Returning true here acts as a signal.
+        setLastLibraryUpdate(Date.now());
       });
     }
     if (window.electronAPI?.onScanStatus) {
@@ -180,6 +193,7 @@ export function useMediaLibrary() {
     directories, folders, scanningDirectories,
     page, hasMore, isLoading,
     pendingRefresh, setPendingRefresh,
+    lastLibraryUpdate,
     fetchMedia, checkNewMedia, fetchDirectories
   };
 }

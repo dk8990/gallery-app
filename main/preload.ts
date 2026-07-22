@@ -1,6 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  getCurrentLibrary: () => ipcRenderer.invoke('get-current-library'),
+  createLibrary: () => ipcRenderer.invoke('create-library'),
+  openLibrary: () => ipcRenderer.invoke('open-library'),
+  closeLibrary: () => ipcRenderer.invoke('close-library'),
+  deleteLibrary: () => ipcRenderer.invoke('delete-library'),
   ping: (message: string) => ipcRenderer.invoke('ping', message),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   scanDirectory: (dirPath: string) => ipcRenderer.invoke('scan-directory', dirPath),

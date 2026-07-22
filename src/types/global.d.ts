@@ -3,6 +3,11 @@ export {};
 declare global {
   interface Window {
     electronAPI: {
+      getCurrentLibrary: () => Promise<string | null>;
+      createLibrary: () => Promise<string | null>;
+      openLibrary: () => Promise<string | null>;
+      closeLibrary: () => Promise<boolean>;
+      deleteLibrary: () => Promise<boolean>;
       ping: (message: string) => Promise<string>;
       selectDirectory: () => Promise<string | null>;
       scanDirectory: (dirPath: string) => Promise<{ status: string }>;

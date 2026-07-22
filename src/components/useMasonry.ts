@@ -75,7 +75,8 @@ export function useMasonry<T extends { width?: number; height?: number; isHeader
 export function useVirtualMasonry<T>(
   positionedItems: MasonryItem<T>[],
   scrollContainerRef: RefObject<HTMLElement | null>,
-  overscan = 1000
+  overscan = 1000,
+  triggerDependency?: any
 ) {
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(1000);
@@ -97,7 +98,7 @@ export function useVirtualMasonry<T>(
       container.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
     };
-  }, [scrollContainerRef]);
+  }, [scrollContainerRef, triggerDependency]);
 
   const visibleItems = useMemo(() => {
     const viewTop = scrollTop - overscan;

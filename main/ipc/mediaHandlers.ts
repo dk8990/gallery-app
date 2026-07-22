@@ -3,7 +3,7 @@ import type { BrowserWindow } from 'electron';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import sharp from 'sharp';
-import { db } from '../db';
+import { getDb } from '../db';
 import type { FSWatcher } from 'chokidar';
 
 export function registerMediaHandlers(
@@ -15,7 +15,7 @@ export function registerMediaHandlers(
   ipcMain.handle('get-folders', () => {
     try {
       const query = `SELECT DISTINCT replace(filepath, filename, '') as dirpath FROM Media`;
-      const rows = db.prepare(query).all() as { dirpath: string }[];
+      const rows = getDb().prepare(query).all() as { dirpath: string }[];
       return { success: true, folders: rows.map(r => r.dirpath) };
     } catch (error) {
       console.error('Failed to get folders from DB:', error);
@@ -89,8 +89,8 @@ export function registerMediaHandlers(
         
       const queryParams = limit > 0 ? [...params, limit, offset] : params;
       
-      const items = db.prepare(query).all(...queryParams);
-      const totalRow = db.prepare(countBaseQuery).get(...params) as { count: number };
+      const items = getDb().prepare(query).all(...queryParams);
+      const totalRow = getDb().prepare(countBaseQuery).get(...params) as { count: number };
       
       return {
         items,
@@ -116,16 +116,16 @@ export function registerMediaHandlers(
         mw.webContents.send('scan-status', { scanningDirectories: [] });
       }
   
-      const dirs = db.prepare('SELECT path FROM Directories').all() as { path: string }[];
+      const dirs = getDb().prepare('SELECT path FROM Directories').all() as { path: string }[];
       dirs.forEach(d => {
         const w = watcher();
         if (w) w.unwatch(d.path);
       });
   
-      db.prepare('DELETE FROM Directories').run();
-      db.prepare('DELETE FROM Media').run();
-      db.prepare('DELETE FROM Tags').run();
-      db.prepare('DELETE FROM MediaTags').run();
+      getDb().prepare('DELETE FROM Directories').run();
+      getDb().prepare('DELETE FROM Media').run();
+      getDb().prepare('DELETE FROM Tags').run();
+      getDb().prepare('DELETE FROM MediaTags').run();
       return { success: true };
     } catch (error) {
       console.error('Failed to clear database:', error);
@@ -138,14 +138,14 @@ export function registerMediaHandlers(
       const name = tagName.trim().toLowerCase();
       if (!name) return { success: false, error: 'Tag name cannot be empty' };
   
-      let tag = db.prepare('SELECT * FROM Tags WHERE name = ?').get(name) as { id: number, name: string };
+      let tag = getDb().prepare('SELECT * FROM Tags WHERE name = ?').get(name) as { id: number, name: string };
       if (!tag) {
-        const result = db.prepare('INSERT INTO Tags (name) VALUES (?)').run(name);
+        const result = getDb().prepare('INSERT INTO Tags (name) VALUES (?)').run(name);
         tag = { id: result.lastInsertRowid as number, name };
       }
   
       try {
-        db.prepare('INSERT INTO MediaTags (media_id, tag_id) VALUES (?, ?)').run(mediaId, tag.id);
+        getDb().prepare('INSERT INTO MediaTags (media_id, tag_id) VALUES (?, ?)').run(mediaId, tag.id);
       } catch (e: any) {
         if (e.code !== 'SQLITE_CONSTRAINT_PRIMARYKEY') throw e;
       }
@@ -162,13 +162,13 @@ export function registerMediaHandlers(
       const name = tagName.trim().toLowerCase();
       if (!name) return { success: false, error: 'Tag name cannot be empty' };
   
-      let tag = db.prepare('SELECT * FROM Tags WHERE name = ?').get(name) as { id: number, name: string };
+      let tag = getDb().prepare('SELECT * FROM Tags WHERE name = ?').get(name) as { id: number, name: string };
       if (!tag) {
-        const result = db.prepare('INSERT INTO Tags (name) VALUES (?)').run(name);
+        const result = getDb().prepare('INSERT INTO Tags (name) VALUES (?)').run(name);
         tag = { id: result.lastInsertRowid as number, name };
       }
   
-      const insertStmt = db.prepare('INSERT INTO MediaTags (media_id, tag_id) VALUES (?, ?)');
+      const insertStmt = getDb().prepare('INSERT INTO MediaTags (media_id, tag_id) VALUES (?, ?)');
       for (const mediaId of mediaIds) {
         try {
           insertStmt.run(mediaId, tag.id);
@@ -186,7 +186,7 @@ export function registerMediaHandlers(
   
   ipcMain.handle('remove-tag', (event, mediaId: number, tagId: number) => {
     try {
-      db.prepare('DELETE FROM MediaTags WHERE media_id = ? AND tag_id = ?').run(mediaId, tagId);
+      getDb().prepare('DELETE FROM MediaTags WHERE media_id = ? AND tag_id = ?').run(mediaId, tagId);
       return { success: true };
     } catch (error) {
       console.error('Failed to remove tag:', error);
@@ -196,7 +196,7 @@ export function registerMediaHandlers(
   
   ipcMain.handle('get-tags', (event, mediaId: number) => {
     try {
-      const tags = db.prepare(`
+      const tags = getDb().prepare(`
         SELECT Tags.id, Tags.name 
         FROM Tags 
         JOIN MediaTags ON Tags.id = MediaTags.tag_id 
@@ -211,7 +211,7 @@ export function registerMediaHandlers(
   
   ipcMain.handle('add-directory', (event, dirPath: string) => {
     try {
-      db.prepare('INSERT OR IGNORE INTO Directories (path) VALUES (?)').run(dirPath);
+      getDb().prepare('INSERT OR IGNORE INTO Directories (path) VALUES (?)').run(dirPath);
       const w = watcher();
       if (w) w.add(dirPath);
       return { success: true };
@@ -223,18 +223,18 @@ export function registerMediaHandlers(
   
   ipcMain.handle('remove-directory', (event, id: number) => {
     try {
-      const dir = db.prepare('SELECT path FROM Directories WHERE id = ?').get(id) as { path: string };
+      const dir = getDb().prepare('SELECT path FROM Directories WHERE id = ?').get(id) as { path: string };
       if (dir) {
         if (activeScans.has(dir.path)) {
           activeScans.get(dir.path)?.abort();
           activeScans.delete(dir.path);
           scanningDirectories.delete(dir.path);
         }
-        db.prepare('DELETE FROM Media WHERE filepath LIKE ?').run(`${dir.path}%`);
+        getDb().prepare('DELETE FROM Media WHERE filepath LIKE ?').run(`${dir.path}%`);
         const w = watcher();
         if (w) w.unwatch(dir.path);
       }
-      db.prepare('DELETE FROM Directories WHERE id = ?').run(id);
+      getDb().prepare('DELETE FROM Directories WHERE id = ?').run(id);
   
       const mw = mainWindow();
       if (mw && !mw.isDestroyed()) {
@@ -250,7 +250,7 @@ export function registerMediaHandlers(
   
   ipcMain.handle('get-directories', () => {
     try {
-      const dirs = db.prepare('SELECT * FROM Directories').all();
+      const dirs = getDb().prepare('SELECT * FROM Directories').all();
       return { success: true, directories: dirs };
     } catch (error) {
       console.error('Failed to get directories:', error);
@@ -261,7 +261,7 @@ export function registerMediaHandlers(
   ipcMain.handle('delete-media', async (event, id: number, filepath: string) => {
     try {
       await fs.unlink(filepath).catch(() => {});
-      db.prepare('DELETE FROM Media WHERE id = ?').run(id);
+      getDb().prepare('DELETE FROM Media WHERE id = ?').run(id);
       return { success: true };
     } catch (error) {
       console.error('Failed to delete media:', error);
@@ -271,7 +271,7 @@ export function registerMediaHandlers(
   
   ipcMain.handle('delete-media-multiple', async (event, items: {id: number, filepath: string}[]) => {
     try {
-      const deleteStmt = db.prepare('DELETE FROM Media WHERE id = ?');
+      const deleteStmt = getDb().prepare('DELETE FROM Media WHERE id = ?');
       for (const item of items) {
         await fs.unlink(item.filepath).catch(() => {});
         deleteStmt.run(item.id);
@@ -303,7 +303,7 @@ export function registerMediaHandlers(
       await fs.writeFile(filepath, rotatedBuffer);
       
       // Also regenerate thumbnail
-      const thumbPath = db.prepare('SELECT thumbnail_path FROM Media WHERE id = ?').get(id) as { thumbnail_path: string };
+      const thumbPath = getDb().prepare('SELECT thumbnail_path FROM Media WHERE id = ?').get(id) as { thumbnail_path: string };
       if (thumbPath && thumbPath.thumbnail_path) {
         await sharp(rotatedBuffer)
           .resize({ width: 300 })
@@ -314,7 +314,7 @@ export function registerMediaHandlers(
       // Update dimensions in DB
       const metadata = await sharp(rotatedBuffer).metadata();
       if (metadata.width && metadata.height) {
-        db.prepare('UPDATE Media SET width = ?, height = ? WHERE id = ?').run(metadata.width, metadata.height, id);
+        getDb().prepare('UPDATE Media SET width = ?, height = ? WHERE id = ?').run(metadata.width, metadata.height, id);
       }
       return { success: true };
     } catch (error) {

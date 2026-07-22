@@ -3,9 +3,96 @@ import type { BrowserWindow } from 'electron';
 import util from 'util';
 import { exec } from 'child_process';
 
+import * as path from 'path';
+import * as fs from 'fs';
+import { setConfig, getConfig } from '../config';
+import { initDB, closeDb } from '../db';
+import { startLibraryServices, stopLibraryServices } from '../index';
+
 const execPromise = util.promisify(exec);
 
 export function registerSystemHandlers(mainWindow: BrowserWindow | null) {
+  ipcMain.handle('get-current-library', () => {
+    return getConfig().activeLibraryPath;
+  });
+
+  ipcMain.handle('create-library', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select Folder for New Library',
+      properties: ['openDirectory', 'createDirectory']
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    
+    const rootPath = result.filePaths[0];
+    const libraryPath = path.join(rootPath, '.gallery-library');
+    
+    if (!fs.existsSync(libraryPath)) {
+      fs.mkdirSync(libraryPath, { recursive: true });
+    }
+    
+    setConfig({ activeLibraryPath: libraryPath });
+    initDB(libraryPath);
+    startLibraryServices();
+    
+    return libraryPath;
+  });
+
+  ipcMain.handle('open-library', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select Library Folder (.gallery-library)',
+      properties: ['openDirectory']
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    
+    let selectedPath = result.filePaths[0];
+    // If they selected the parent folder, append .gallery-library
+    if (!selectedPath.endsWith('.gallery-library')) {
+      const impliedLibrary = path.join(selectedPath, '.gallery-library');
+      if (fs.existsSync(impliedLibrary)) {
+        selectedPath = impliedLibrary;
+      } else {
+        dialog.showErrorBox('Invalid Library', 'The selected folder is not a valid Gallery Library.');
+        return null;
+      }
+    } else if (!fs.existsSync(selectedPath)) {
+      dialog.showErrorBox('Invalid Library', 'The library folder does not exist.');
+      return null;
+    }
+
+    setConfig({ activeLibraryPath: selectedPath });
+    initDB(selectedPath);
+    startLibraryServices();
+
+    return selectedPath;
+  });
+
+  ipcMain.handle('close-library', () => {
+    stopLibraryServices();
+    closeDb();
+    setConfig({ activeLibraryPath: null });
+    return true;
+  });
+
+  ipcMain.handle('delete-library', () => {
+    const libPath = getConfig().activeLibraryPath;
+    if (!libPath) return false;
+    
+    stopLibraryServices();
+    closeDb();
+    setConfig({ activeLibraryPath: null });
+    
+    try {
+      if (fs.existsSync(libPath)) {
+        fs.rmSync(libPath, { recursive: true, force: true });
+      }
+      return true;
+    } catch (e) {
+      console.error('Failed to delete library directory:', e);
+      return false;
+    }
+  });
   ipcMain.handle('select-directory', async () => {
     if (!mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, {

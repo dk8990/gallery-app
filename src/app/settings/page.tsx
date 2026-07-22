@@ -286,6 +286,46 @@ export default function SettingsPage() {
                   Clear Database
                 </InteractiveButton>
               </div>
+
+              <div className="flex items-center justify-between p-4 border border-red-500/10 bg-red-500/5 rounded-xl mt-4">
+                <div>
+                  <p className="font-medium text-zinc-200">Close Library</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">Disconnects the current library and returns you to the Welcome screen. Useful if you want to move the library folder.</p>
+                </div>
+                <InteractiveButton
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to close this library? You can reopen it later from the Welcome screen.")) {
+                      await window.electronAPI?.closeLibrary();
+                      router.push('/welcome');
+                    }
+                  }}
+                  className="px-4 py-2 bg-orange-900/30 hover:bg-orange-500/30 text-sm text-orange-300 hover:text-orange-200 border border-orange-500/30 rounded-lg transition-all whitespace-nowrap"
+                >
+                  Close Library
+                </InteractiveButton>
+              </div>
+
+              <div className="flex items-center justify-between p-4 border border-red-500/10 bg-red-500/5 rounded-xl mt-4">
+                <div>
+                  <p className="font-medium text-zinc-200">Delete Library</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">Permanently deletes the `.gallery-library` database folder from your drive. Your media files will NOT be deleted.</p>
+                </div>
+                <InteractiveButton
+                  onClick={async () => {
+                    if (confirm("WARNING: This will permanently delete your library database and all thumbnails from your disk. Your actual media files will remain untouched. Are you absolutely sure?")) {
+                      const success = await window.electronAPI?.deleteLibrary();
+                      if (success) {
+                        router.push('/welcome');
+                      } else {
+                        alert("Failed to delete library directory.");
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-900/30 hover:bg-red-500/30 text-sm text-red-300 hover:text-red-200 border border-red-500/30 rounded-lg transition-all whitespace-nowrap"
+                >
+                  Delete Library
+                </InteractiveButton>
+              </div>
             </section>
           </div>
         </main>

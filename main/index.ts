@@ -2,8 +2,9 @@ import { app, BrowserWindow, protocol, net, ipcMain } from 'electron';
 import * as path from 'path';
 import * as fsSync from 'fs';
 import { pathToFileURL } from 'url';
-import { db } from './db';
-import { processFile, removeFile } from './scanner';
+import { getDb, initDB } from './db';
+import { initConfig, getConfig } from './config';
+import { processFile, removeFile, removeDirectory } from './scanner';
 import * as chokidar from 'chokidar';
 import { autoUpdater } from 'electron-updater';
 import { startStreamingServer } from './server';
@@ -29,6 +30,7 @@ function debouncedLibraryUpdate() {
 
 function setupWatcher() {
   try {
+    const db = getDb();
     const dirs = db.prepare('SELECT path FROM Directories').all() as { path: string }[];
     const dirPaths = dirs.map(d => d.path);
     
@@ -53,6 +55,10 @@ function setupWatcher() {
       })
       .on('unlink', (filePath: string) => {
         removeFile(filePath);
+        debouncedLibraryUpdate();
+      })
+      .on('unlinkDir', (dirPath: string) => {
+        removeDirectory(dirPath);
         debouncedLibraryUpdate();
       });
   } catch (error) {
@@ -88,13 +94,41 @@ function createWindow() {
   registerSystemHandlers(mainWindow);
 }
 
+export function startLibraryServices() {
+  startStreamingServer();
+  setupWatcher();
+  
+  // Notify frontend to refresh
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('library-updated');
+  }
+}
+
+export function stopLibraryServices() {
+  if (watcher) {
+    watcher.close();
+    watcher = null;
+  }
+  
+  for (const controller of activeScans.values()) {
+    controller.abort();
+  }
+  activeScans.clear();
+  scanningDirectories.clear();
+  
+  // Notify frontend
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('scan-status', { scanningDirectories: [] });
+  }
+}
+
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true, supportFetchAPI: true } }
 ]);
 
 app.whenReady().then(() => {
-  // Start server
-  startStreamingServer();
+  initConfig();
+  const config = getConfig();
 
   // Register other handlers
   registerMediaHandlers(() => mainWindow, () => watcher, activeScans, scanningDirectories);
@@ -128,8 +162,16 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(filepath).toString());
   });
 
-  setupWatcher();
   createWindow();
+
+  if (config.activeLibraryPath) {
+    try {
+      initDB(config.activeLibraryPath);
+      startLibraryServices();
+    } catch (e) {
+      console.error('Failed to auto-load library:', e);
+    }
+  }
 
   if (app.isPackaged) {
     autoUpdater.checkForUpdatesAndNotify();

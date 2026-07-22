@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { flushSync } from 'react-dom';
 import { Sidebar, FolderNode } from "@/components/Sidebar";
 import { useMasonry, useVirtualMasonry } from "@/components/useMasonry";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, FolderPlus } from "lucide-react";
+import { InteractiveButton } from "@/components/InteractiveButton";
 import { MediaViewer } from "@/components/MediaViewer";
 import { useRouter } from "next/navigation";
 import { useMediaLibrary, MediaItem } from "@/components/Gallery/useMediaLibrary";
@@ -28,6 +29,7 @@ export default function Home() {
     directories, folders, scanningDirectories,
     page, hasMore, isLoading,
     pendingRefresh, setPendingRefresh,
+    lastLibraryUpdate,
     fetchMedia, checkNewMedia, fetchDirectories
   } = useMediaLibrary();
 
@@ -40,6 +42,7 @@ export default function Home() {
   const [selectedMediaIds, setSelectedMediaIds] = useState<Set<number>>(new Set());
   const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isLibraryReady, setIsLibraryReady] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,12 +62,36 @@ export default function Home() {
   }, [activeMediaId, checkNewMedia, isScrolled]);
 
   useEffect(() => {
+    const checkLibrary = async () => {
+      try {
+        const libPath = await window.electronAPI.getCurrentLibrary();
+        if (!libPath) {
+          router.replace('/welcome');
+        } else {
+          setIsLibraryReady(true);
+        }
+      } catch (e) {
+        console.error('Failed to check library:', e);
+      }
+    };
+    checkLibrary();
+  }, [router]);
+
+  // Early return removed to fix Rules of Hooks
+
+  useEffect(() => {
     let interval: NodeJS.Timeout;
     if (scanningDirectories.length > 0 && activeMediaId === null) {
       interval = setInterval(() => checkNewMedia(isScrolled, false), 3000);
     }
     return () => clearInterval(interval);
   }, [scanningDirectories.length, checkNewMedia, activeMediaId, isScrolled]);
+
+  useEffect(() => {
+    if (lastLibraryUpdate > 0) {
+      checkNewMedia(isScrolled, activeMediaId !== null);
+    }
+  }, [lastLibraryUpdate, checkNewMedia, isScrolled, activeMediaId]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -95,7 +122,7 @@ export default function Home() {
       window.removeEventListener('media-rotated', handleRotated);
       window.removeEventListener('media-deleted', handleDeleted);
     };
-  }, [fetchMedia, setMediaItems]);
+  }, [fetchMedia, setMediaItems, isLibraryReady]);
 
   const folderTree = useMemo(() => {
     const root: Record<string, FolderNode> = {};
@@ -135,7 +162,7 @@ export default function Home() {
   const columns = containerWidth < 600 ? 2 : containerWidth < 900 ? 3 : containerWidth < 1200 ? 4 : 5;
   const gap = 16;
   const { positionedItems, totalHeight } = useMasonry(itemsWithHeaders, containerWidth, columns, gap);
-  const visibleItems = useVirtualMasonry(positionedItems, scrollRef);
+  const visibleItems = useVirtualMasonry(positionedItems, scrollRef, 1000, isLibraryReady);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
@@ -147,6 +174,10 @@ export default function Home() {
       }
     }
   };
+
+  if (!isLibraryReady) {
+    return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Loading Library...</div>;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950 text-white">
@@ -183,25 +214,41 @@ export default function Home() {
         />
 
         <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pt-28 px-8 pb-8">
-          {pendingRefresh && (
-            <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+          {pendingRefresh && viewerIndex === null && (
+            <div className="absolute top-32 left-1/2 -translate-x-1/2 z-50 animate-slide-up flex items-center bg-indigo-500/20 backdrop-blur-xl rounded-full shadow-2xl shadow-black/50 border border-indigo-400/30 transition-all hover:scale-105 hover:bg-indigo-500/30 hover:border-indigo-400/40">
               <button
                 onClick={() => {
                   if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
                   fetchMedia(1, false);
                   setPendingRefresh(false);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium rounded-full shadow-xl shadow-black/50 border border-indigo-400/30 transition-all active:scale-95"
+                className="flex items-center gap-3 px-6 py-3 text-white text-sm font-semibold transition-colors active:scale-95"
               >
                 <ArrowUp className="w-4 h-4" />
-                New items discovered
+                Library updated
               </button>
             </div>
           )}
 
           {mediaItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-zinc-500">
-              <p className="text-lg">No media found.</p>
+            <div className="flex flex-col items-center justify-center h-full text-zinc-500 space-y-4">
+              {directories.length === 0 ? (
+                <>
+                  <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mb-2">
+                    <FolderPlus className="w-8 h-8 text-indigo-400" />
+                  </div>
+                  <h3 className="text-xl font-medium text-zinc-300">Your library is empty</h3>
+                  <p className="text-zinc-500 max-w-sm text-center">You haven't added any folders to scan yet. Head over to Settings to add your media folders.</p>
+                  <InteractiveButton 
+                    onClick={() => router.push('/settings')}
+                    className="mt-4 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-full transition-all shadow-lg shadow-indigo-900/20"
+                  >
+                    Go to Settings
+                  </InteractiveButton>
+                </>
+              ) : (
+                <p className="text-lg">No media found.</p>
+              )}
             </div>
           ) : (
             <GalleryGrid

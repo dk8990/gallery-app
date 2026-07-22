@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { db } from './db';
+import { getDb, getLibraryPath } from './db';
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegStatic from 'ffmpeg-static';
@@ -19,18 +19,6 @@ if (ffprobeStatic && ffprobeStatic.path) {
 }
 
 const validExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mkv']);
-const thumbnailsDir = path.join(app.getPath('userData'), 'thumbnails');
-
-// Ensure thumbnails directory exists
-fs.mkdir(thumbnailsDir, { recursive: true }).catch(console.error);
-
-const checkExistingStmt = db.prepare('SELECT id FROM Media WHERE filepath = ?');
-const checkExistingRemoveStmt = db.prepare('SELECT id, thumbnail_path FROM Media WHERE filepath = ?');
-const deleteMediaStmt = db.prepare('DELETE FROM Media WHERE id = ?');
-const insertMediaStmt = db.prepare(`
-  INSERT INTO Media (filepath, filename, type, size, thumbnail_path, width, height, duration, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
 
 async function generateImageThumbnail(filePath: string, destPath: string): Promise<{width: number, height: number}> {
   const image = sharp(filePath);
@@ -69,15 +57,17 @@ export async function processFile(fullPath: string) {
   const ext = path.extname(fullPath).toLowerCase();
   if (!validExtensions.has(ext)) return;
 
-  const existing = checkExistingStmt.get(fullPath);
-  if (existing) return;
-
   try {
+    const db = getDb();
+    const existing = db.prepare('SELECT id FROM Media WHERE filepath = ?').get(fullPath);
+    if (existing) return; // Already scanned
+
     const stats = await fs.stat(fullPath);
     const type = ['.mp4', '.webm', '.mkv'].includes(ext) ? 'video' : 'image';
     
     const hash = crypto.createHash('md5').update(fullPath).digest('hex');
     const thumbFilename = `${hash}.jpg`;
+    const thumbnailsDir = path.join(getLibraryPath(), 'thumbnails');
     const thumbPath = path.join(thumbnailsDir, thumbFilename);
 
     let dimensions = { width: 0, height: 0, duration: 0 };
@@ -90,7 +80,10 @@ export async function processFile(fullPath: string) {
     }
 
     const filename = path.basename(fullPath);
-    insertMediaStmt.run(fullPath, filename, type, stats.size, thumbPath, dimensions.width, dimensions.height, dimensions.duration, stats.birthtime.toISOString());
+    db.prepare(`
+      INSERT INTO Media (filepath, filename, type, size, thumbnail_path, width, height, duration, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(fullPath, filename, type, stats.size, thumbPath, dimensions.width, dimensions.height, dimensions.duration, stats.birthtime.toISOString());
     console.log(`Indexed: ${filename}`);
   } catch (error) {
     console.error(`Failed to process ${fullPath}:`, error);
@@ -107,14 +100,34 @@ export async function processFile(fullPath: string) {
 
 export function removeFile(fullPath: string) {
   try {
-    const existing = checkExistingRemoveStmt.get(fullPath) as { id: number, thumbnail_path: string } | undefined;
+    const db = getDb();
+    const existing = db.prepare('SELECT id, thumbnail_path FROM Media WHERE filepath = ?').get(fullPath) as { id: number, thumbnail_path: string } | undefined;
     if (existing) {
-      deleteMediaStmt.run(existing.id);
+      db.prepare('DELETE FROM Media WHERE id = ?').run(existing.id);
       fs.unlink(existing.thumbnail_path).catch(() => {});
       console.log(`Removed: ${path.basename(fullPath)}`);
     }
   } catch (err) {
     console.error(`Failed to remove ${fullPath}:`, err);
+  }
+}
+
+export function removeDirectory(dirPath: string) {
+  try {
+    const db = getDb();
+    // Use LIKE to find all files that start with the directory path followed by a separator
+    const pathPrefix = dirPath + path.sep + '%';
+    const existingMedia = db.prepare('SELECT id, thumbnail_path FROM Media WHERE filepath LIKE ?').all(pathPrefix) as { id: number, thumbnail_path: string }[];
+    
+    if (existingMedia.length > 0) {
+      db.prepare('DELETE FROM Media WHERE filepath LIKE ?').run(pathPrefix);
+      for (const media of existingMedia) {
+        fs.unlink(media.thumbnail_path).catch(() => {});
+      }
+      console.log(`Removed directory contents: ${dirPath} (${existingMedia.length} items)`);
+    }
+  } catch (err) {
+    console.error(`Failed to remove directory ${dirPath}:`, err);
   }
 }
 
@@ -132,7 +145,9 @@ export async function scanDirectory(dirPath: string, signal?: AbortSignal) {
       const fullPath = path.join(dirPath, entry.name);
 
       if (entry.isDirectory()) {
-        await scanDirectory(fullPath, signal);
+        if (entry.name !== '.gallery-library') {
+          await scanDirectory(fullPath, signal);
+        }
       } else {
         try {
           await processFile(fullPath);

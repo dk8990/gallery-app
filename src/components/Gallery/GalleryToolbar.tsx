@@ -54,7 +54,7 @@ export function GalleryToolbar({
       </div>
 
       <div className="flex gap-3 items-center pointer-events-auto">
-        <div className="relative">
+        <label className="relative block cursor-text">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800/50 focus-within:bg-zinc-800 border border-white/5 focus-within:border-white/20 rounded-lg transition-all">
             <Search className="w-4 h-4 text-zinc-400" />
             <input
@@ -65,7 +65,7 @@ export function GalleryToolbar({
               className="bg-transparent text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none w-48"
             />
           </div>
-        </div>
+        </label>
 
         <DynamicDropdown
           isOpen={openDropdown === 'filter'}
